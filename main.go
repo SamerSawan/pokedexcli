@@ -61,12 +61,17 @@ func getCommands() map[string]cliCommand {
 			description: "Lets you attempt to catch a pokemon. Difficulty scales with base experience of the pokemon",
 			callback:    commandCatch,
 		},
+		"inspect": {
+			name:        "inspect",
+			description: "Lets you inspect a pokemon you've caught before.",
+			callback:    commandInspect,
+		},
 	}
 }
 
 func commandHelp(cfg *config) error {
 	commands := getCommands()
-	commandOrder := []string{"help", "exit", "map", "mapb", "explore", "catch"}
+	commandOrder := []string{"help", "exit", "map", "mapb", "explore", "catch", "inspect"}
 	fmt.Println()
 	fmt.Println("Welcome to the Pokedex!")
 	fmt.Println("Usage: ")
@@ -155,6 +160,30 @@ func commandCatch(cfg *config) error {
 	fmt.Printf("%s was caught!\n", pokemon.Name)
 
 	cfg.pokedex.Entries[pokemon.Name] = pokemon
+	return nil
+}
+
+func commandInspect(cfg *config) error {
+	if len(cfg.args) != 1 {
+		fmt.Println("You must specify a pokemon to inspect!")
+		return errors.New("Missing argument")
+	}
+	pokemon, exists := cfg.pokedex.Entries[cfg.args[0]]
+	if exists {
+		fmt.Printf("Name: %s\n", pokemon.Name)
+		fmt.Printf("Height: %d\n", pokemon.Height)
+		fmt.Printf("Weight: %d\n", pokemon.Weight)
+		fmt.Println("Stats: ")
+		for i := 0; i < len(pokemon.Stats); i++ {
+			fmt.Printf(" - %s: %d\n", pokemon.Stats[i].Stat.Name, pokemon.Stats[i].BaseStat)
+		}
+		fmt.Println("Types: ")
+		for i := 0; i < len(pokemon.Types); i++ {
+			fmt.Printf(" - %s\n", pokemon.Types[i].Type.Name)
+		}
+	} else {
+		fmt.Println("You have not caught that pokemon")
+	}
 	return nil
 }
 
