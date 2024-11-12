@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/samersawan/pokedexcli/internal/api"
@@ -15,6 +16,7 @@ type config struct {
 	prev   *string
 	cache  *pokecache.Cache
 	client api.Client
+	args   []string
 }
 
 type cliCommand struct {
@@ -45,12 +47,17 @@ func getCommands() map[string]cliCommand {
 			description: "Displays the names of the previous 20 locations",
 			callback:    commandMapb,
 		},
+		"explore": {
+			name:        "explore",
+			description: "Takes a location name as an argument. Displays all the Pokemon in a given area",
+			callback:    commandExplore,
+		},
 	}
 }
 
 func commandHelp(cfg *config) error {
 	commands := getCommands()
-	commandOrder := []string{"help", "exit", "map", "mapb"}
+	commandOrder := []string{"help", "exit", "map", "mapb", "explore"}
 	fmt.Println()
 	fmt.Println("Welcome to the Pokedex!")
 	fmt.Println("Usage: ")
@@ -99,13 +106,27 @@ func commandMapb(cfg *config) error {
 	return nil
 }
 
+func commandExplore(cfg *config) error {
+	fullURL := "https://pokeapi.co/api/v2/location-area/" + cfg.args[0]
+	pokemon, err := cfg.client.ExploreLocation(fullURL, cfg.cache)
+	if err != nil {
+		return err
+	}
+	fmt.Println("Exploring ", cfg.args[0])
+	fmt.Println("Found Pokemon:")
+	for i := 0; i < len(pokemon); i++ {
+		fmt.Println(" - ", pokemon[i])
+	}
+	return nil
+}
+
 func main() {
 	commands := getCommands()
 	c := pokecache.NewCache(5 * time.Second)
 	client := api.NewClient(5 * time.Second)
 
 	cfg := &config{
-		next:   "https://pokeapi.co/api/v2/location/",
+		next:   "https://pokeapi.co/api/v2/location-area/",
 		prev:   nil,
 		cache:  c,
 		client: client,
@@ -115,7 +136,9 @@ func main() {
 	for {
 		fmt.Print("pokedex > ")
 		reader.Scan()
-		cmd := reader.Text()
+		parts := reader.Text()
+		cmd := strings.Fields(parts)[0]
+		cfg.args = strings.Fields(parts)[1:]
 
 		if cmd, ok := commands[cmd]; ok {
 			cmd.callback(cfg)
