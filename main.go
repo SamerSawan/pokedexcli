@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -107,6 +108,10 @@ func commandMapb(cfg *config) error {
 }
 
 func commandExplore(cfg *config) error {
+	if len(cfg.args) != 1 {
+		fmt.Println("You must provide a location name")
+		return errors.New("you must provide a location name")
+	}
 	fullURL := "https://pokeapi.co/api/v2/location-area/" + cfg.args[0]
 	pokemon, err := cfg.client.ExploreLocation(fullURL, cfg.cache)
 	if err != nil {
