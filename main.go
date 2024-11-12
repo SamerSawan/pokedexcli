@@ -4,12 +4,19 @@ import (
 	"bufio"
 	"fmt"
 	"os"
+
+	"github.com/samersawan/pokedexcli/internal/api"
 )
+
+type config struct {
+	next string
+	prev *string
+}
 
 type cliCommand struct {
 	name        string
 	description string
-	callback    func() error
+	callback    func(cfg *config) error
 }
 
 func getCommands() map[string]cliCommand {
@@ -24,12 +31,22 @@ func getCommands() map[string]cliCommand {
 			description: "Exit the Pokedex",
 			callback:    commandExit,
 		},
+		"map": {
+			name:        "map",
+			description: "Displays the names of 20 location areas in the Pokemon world. Each subsequent call to map displays the next 20 locations",
+			callback:    commandMap,
+		},
+		"mapb": {
+			name:        "mapb",
+			description: "Displays the names of the previous 20 locations",
+			callback:    commandMapb,
+		},
 	}
 }
 
-func commandHelp() error {
+func commandHelp(cfg *config) error {
 	commands := getCommands()
-	commandOrder := []string{"help", "exit"}
+	commandOrder := []string{"help", "exit", "map", "mapb"}
 	fmt.Println()
 	fmt.Println("Welcome to the Pokedex!")
 	fmt.Println("Usage: ")
@@ -41,13 +58,49 @@ func commandHelp() error {
 	return nil
 }
 
-func commandExit() error {
+func commandExit(cfg *config) error {
 	os.Exit(0)
+	return nil
+}
+
+func commandMap(cfg *config) error {
+	prev, next, locations, err := api.GetLocations(cfg.next)
+	if err != nil {
+		return err
+	}
+	cfg.next = next
+	cfg.prev = prev
+	for i := 0; i < len(locations); i++ {
+		fmt.Println(locations[i])
+	}
+	return nil
+}
+
+func commandMapb(cfg *config) error {
+
+	if cfg.prev == nil {
+		fmt.Println("Can not display previous locations because they do not exist. Use map instead.")
+		return fmt.Errorf("prev is nil")
+	}
+	prev, next, locations, err := api.GetLocations(*cfg.prev)
+	if err != nil {
+		return err
+	}
+	cfg.next = next
+	cfg.prev = prev
+	for i := 0; i < len(locations); i++ {
+		fmt.Println(locations[i])
+	}
 	return nil
 }
 
 func main() {
 	commands := getCommands()
+
+	cfg := &config{
+		next: "https://pokeapi.co/api/v2/location/",
+		prev: nil,
+	}
 
 	reader := bufio.NewScanner(os.Stdin)
 	for {
@@ -56,7 +109,7 @@ func main() {
 		cmd := reader.Text()
 
 		if cmd, ok := commands[cmd]; ok {
-			cmd.callback()
+			cmd.callback(cfg)
 		} else {
 			fmt.Println("Command does not exist!")
 		}
