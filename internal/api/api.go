@@ -27,6 +27,7 @@ func GetLocations(url string) (*string, string, []string, error) {
 	if err = decoder.Decode(&locations); err != nil {
 		return nil, "", nil, err
 	}
+	defer res.Body.Close()
 
 	locationNames := make([]string, len(locations.Results))
 	for i := 0; i < len(locationNames); i++ {
