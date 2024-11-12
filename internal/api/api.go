@@ -3,7 +3,11 @@ package api
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
+	"time"
+
+	"github.com/samersawan/pokedexcli/internal/pokecache"
 )
 
 type locationResponse struct {
@@ -16,18 +20,49 @@ type locationResponse struct {
 	} `json:"results"`
 }
 
-func GetLocations(url string) (*string, string, []string, error) {
-	res, err := http.Get(url)
-	if err != nil {
-		return nil, "", nil, err
-	}
+type Client struct {
+	httpClient http.Client
+}
 
-	locations := locationResponse{}
-	decoder := json.NewDecoder(res.Body)
-	if err = decoder.Decode(&locations); err != nil {
-		return nil, "", nil, err
+func NewClient(timeout time.Duration) Client {
+	return Client{
+		httpClient: http.Client{
+			Timeout: timeout,
+		},
 	}
-	defer res.Body.Close()
+}
+
+func (client *Client) GetLocations(url string, c *pokecache.Cache) (*string, string, []string, error) {
+	locations := locationResponse{}
+	if dat, exists := c.Get(url); exists {
+		err := json.Unmarshal(dat, &locations)
+		if err != nil {
+			return nil, "", nil, err
+		}
+	} else {
+		req, err := http.NewRequest("GET", url, nil)
+		if err != nil {
+			return nil, "", nil, err
+		}
+
+		res, err := client.httpClient.Do(req)
+		if err != nil {
+			return nil, "", nil, err
+		}
+		defer res.Body.Close()
+
+		dat, err := io.ReadAll(res.Body)
+		if err != nil {
+			return nil, "", nil, err
+		}
+
+		c.Add(url, dat)
+
+		err = json.Unmarshal(dat, &locations)
+		if err != nil {
+			return nil, "", nil, err
+		}
+	}
 
 	locationNames := make([]string, len(locations.Results))
 	for i := 0; i < len(locationNames); i++ {

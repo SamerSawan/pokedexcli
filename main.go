@@ -4,13 +4,17 @@ import (
 	"bufio"
 	"fmt"
 	"os"
+	"time"
 
 	"github.com/samersawan/pokedexcli/internal/api"
+	"github.com/samersawan/pokedexcli/internal/pokecache"
 )
 
 type config struct {
-	next string
-	prev *string
+	next   string
+	prev   *string
+	cache  *pokecache.Cache
+	client api.Client
 }
 
 type cliCommand struct {
@@ -64,7 +68,8 @@ func commandExit(cfg *config) error {
 }
 
 func commandMap(cfg *config) error {
-	prev, next, locations, err := api.GetLocations(cfg.next)
+
+	prev, next, locations, err := cfg.client.GetLocations(cfg.next, cfg.cache)
 	if err != nil {
 		return err
 	}
@@ -82,7 +87,7 @@ func commandMapb(cfg *config) error {
 		fmt.Println("Can not display previous locations because they do not exist. Use map instead.")
 		return fmt.Errorf("prev is nil")
 	}
-	prev, next, locations, err := api.GetLocations(*cfg.prev)
+	prev, next, locations, err := cfg.client.GetLocations(*cfg.prev, cfg.cache)
 	if err != nil {
 		return err
 	}
@@ -96,10 +101,14 @@ func commandMapb(cfg *config) error {
 
 func main() {
 	commands := getCommands()
+	c := pokecache.NewCache(5 * time.Second)
+	client := api.NewClient(5 * time.Second)
 
 	cfg := &config{
-		next: "https://pokeapi.co/api/v2/location/",
-		prev: nil,
+		next:   "https://pokeapi.co/api/v2/location/",
+		prev:   nil,
+		cache:  c,
+		client: client,
 	}
 
 	reader := bufio.NewScanner(os.Stdin)
