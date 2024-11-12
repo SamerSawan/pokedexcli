@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/samersawan/pokedexcli/internal/pokecache"
+	"github.com/samersawan/pokedexcli/internal/pokedex"
 )
 
 type locationResponse struct {
@@ -20,34 +21,7 @@ type locationResponse struct {
 	} `json:"results"`
 }
 
-type pokemonResponse struct {
-	EncounterMethodRates []struct {
-		EncounterMethod struct {
-			Name string `json:"name"`
-			URL  string `json:"url"`
-		} `json:"encounter_method"`
-		VersionDetails []struct {
-			Rate    int `json:"rate"`
-			Version struct {
-				Name string `json:"name"`
-				URL  string `json:"url"`
-			} `json:"version"`
-		} `json:"version_details"`
-	} `json:"encounter_method_rates"`
-	GameIndex int `json:"game_index"`
-	ID        int `json:"id"`
-	Location  struct {
-		Name string `json:"name"`
-		URL  string `json:"url"`
-	} `json:"location"`
-	Name  string `json:"name"`
-	Names []struct {
-		Language struct {
-			Name string `json:"name"`
-			URL  string `json:"url"`
-		} `json:"language"`
-		Name string `json:"name"`
-	} `json:"names"`
+type pokemonListResponse struct {
 	PokemonEncounters []struct {
 		Pokemon struct {
 			Name string `json:"name"`
@@ -131,7 +105,7 @@ func (client *Client) GetLocations(url string, c *pokecache.Cache) (*string, str
 }
 
 func (client *Client) ExploreLocation(url string, c *pokecache.Cache) ([]string, error) {
-	pokemon := pokemonResponse{}
+	pokemon := pokemonListResponse{}
 	if dat, exists := c.Get(url); exists {
 		err := json.Unmarshal(dat, &pokemon)
 		if err != nil {
@@ -167,4 +141,40 @@ func (client *Client) ExploreLocation(url string, c *pokecache.Cache) ([]string,
 		pokemonNames[i] = pokemon.PokemonEncounters[i].Pokemon.Name
 	}
 	return pokemonNames, nil
+}
+
+func (client *Client) GetPokemonInfo(url string, c *pokecache.Cache) (pokedex.Pokemon, error) {
+	pokemon := pokedex.Pokemon{}
+
+	if dat, exists := c.Get(url); exists {
+		err := json.Unmarshal(dat, &pokemon)
+		if err != nil {
+			return pokedex.Pokemon{}, err
+		}
+	} else {
+		req, err := http.NewRequest("GET", url, nil)
+		if err != nil {
+			return pokedex.Pokemon{}, err
+		}
+
+		res, err := client.httpClient.Do(req)
+		if err != nil {
+			return pokedex.Pokemon{}, err
+		}
+		defer res.Body.Close()
+
+		dat, err := io.ReadAll(res.Body)
+		if err != nil {
+			return pokedex.Pokemon{}, err
+		}
+
+		c.Add(url, dat)
+
+		err = json.Unmarshal(dat, &pokemon)
+		if err != nil {
+			return pokedex.Pokemon{}, err
+		}
+	}
+
+	return pokemon, nil
 }

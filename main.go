@@ -4,20 +4,23 @@ import (
 	"bufio"
 	"errors"
 	"fmt"
+	"math/rand"
 	"os"
 	"strings"
 	"time"
 
 	"github.com/samersawan/pokedexcli/internal/api"
 	"github.com/samersawan/pokedexcli/internal/pokecache"
+	"github.com/samersawan/pokedexcli/internal/pokedex"
 )
 
 type config struct {
-	next   string
-	prev   *string
-	cache  *pokecache.Cache
-	client api.Client
-	args   []string
+	next    string
+	prev    *string
+	cache   *pokecache.Cache
+	client  api.Client
+	args    []string
+	pokedex pokedex.Pokedex
 }
 
 type cliCommand struct {
@@ -53,12 +56,17 @@ func getCommands() map[string]cliCommand {
 			description: "Takes a location name as an argument. Displays all the Pokemon in a given area",
 			callback:    commandExplore,
 		},
+		"catch": {
+			name:        "catch",
+			description: "Lets you attempt to catch a pokemon. Difficulty scales with base experience of the pokemon",
+			callback:    commandCatch,
+		},
 	}
 }
 
 func commandHelp(cfg *config) error {
 	commands := getCommands()
-	commandOrder := []string{"help", "exit", "map", "mapb", "explore"}
+	commandOrder := []string{"help", "exit", "map", "mapb", "explore", "catch"}
 	fmt.Println()
 	fmt.Println("Welcome to the Pokedex!")
 	fmt.Println("Usage: ")
@@ -125,16 +133,43 @@ func commandExplore(cfg *config) error {
 	return nil
 }
 
+func commandCatch(cfg *config) error {
+
+	if len(cfg.args) != 1 {
+		fmt.Println("You must specify a pokemon!")
+		return errors.New("Not enough arguments")
+	}
+	fullURL := "https://pokeapi.co/api/v2/pokemon/" + cfg.args[0]
+	pokemon, err := cfg.client.GetPokemonInfo(fullURL, cfg.cache)
+	if err != nil {
+		return err
+	}
+	res := rand.Intn(pokemon.BaseExperience)
+
+	fmt.Printf("Throwing a Pokeball at %s...\n", pokemon.Name)
+	if res > 40 {
+		fmt.Printf("%s escaped!\n", pokemon.Name)
+		return nil
+	}
+
+	fmt.Printf("%s was caught!\n", pokemon.Name)
+
+	cfg.pokedex.Entries[pokemon.Name] = pokemon
+	return nil
+}
+
 func main() {
 	commands := getCommands()
 	c := pokecache.NewCache(5 * time.Second)
 	client := api.NewClient(5 * time.Second)
+	pokedex := pokedex.Pokedex{Entries: make(map[string]pokedex.Pokemon)}
 
 	cfg := &config{
-		next:   "https://pokeapi.co/api/v2/location-area/",
-		prev:   nil,
-		cache:  c,
-		client: client,
+		next:    "https://pokeapi.co/api/v2/location-area/",
+		prev:    nil,
+		cache:   c,
+		client:  client,
+		pokedex: pokedex,
 	}
 
 	reader := bufio.NewScanner(os.Stdin)
